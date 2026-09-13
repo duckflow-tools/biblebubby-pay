@@ -1,0 +1,1 @@
+Replace this file with the domain association file Stripe Dashboard gives you for Apple Pay. Open Stripe → Settings → Payments → payment methods → Apple Pay, add this hosted domain, download apple-developer-merchantid-domain-association, and put that file here without renaming it.

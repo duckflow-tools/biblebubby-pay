@@ -1,0 +1,15 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/subscribe", "destination": "/index.html" },
+    { "source": "/done", "destination": "/index.html" },
+    { "source": "/manage", "destination": "/index.html" },
+    { "source": "/", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/.well-known/apple-developer-merchantid-domain-association",
+      "headers": [{ "key": "Content-Type", "value": "text/plain" }]
+    }
+  ]
+}

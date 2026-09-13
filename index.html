@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="referrer" content="no-referrer">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BibleBubby Max</title>
+  <style>
+    :root { --ink:#2F2F2F; --muted:#666; --accent:#9F63FF; --deep:#7842CE; --tint:#EFE6FF; --gold:#FBF1D6; --gold-text:#6B4E00; --card:#fff; --canvas:#FFFDFE; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--canvas); color: var(--ink); font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { max-width: 28rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+    .bubby { display: block; width: 7.5rem; height: 7.5rem; margin: 0 auto 1rem; }
+    h1 { font-size: 1.75rem; line-height: 1.2; font-weight: 700; margin: 0 0 .75rem; text-align: center; }
+    .email, .status { text-align: center; color: var(--muted); margin: 0 0 1.25rem; }
+    .outcomes { list-style: none; padding: 0; margin: 0 0 1.25rem; }
+    .outcomes li { display: flex; gap: .75rem; align-items: flex-start; margin: 0 0 .65rem; }
+    .check { flex: 0 0 1.5rem; width: 1.5rem; height: 1.5rem; border-radius: 999px; background: var(--tint); color: var(--deep); font-size: .85rem; display: grid; place-items: center; }
+    .plan { background: var(--card); border: 2px solid var(--accent); border-radius: 1.25rem; padding: 1rem 1.1rem; margin-bottom: 1.25rem; }
+    .badge { display: inline-block; background: var(--gold); color: var(--gold-text); border-radius: 999px; padding: .1rem .55rem; font-size: .75rem; font-weight: 600; margin-bottom: .35rem; }
+    .price { color: var(--muted); margin: .2rem 0 0; }
+    button, .cta { display: block; width: 100%; border: 0; border-radius: 1rem; padding: .95rem 1rem; background: var(--accent); color: #fff; font-size: 1.05rem; font-weight: 700; text-align: center; text-decoration: none; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .ghost { margin-top: .75rem; background: transparent; color: var(--deep); }
+    .error { color: #B72E2E; text-align: center; margin: .75rem 0 0; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <svg class="bubby" viewBox="0 0 96 96" aria-hidden="true">
+      <ellipse cx="48" cy="86" rx="22" ry="5" fill="#E5E2E6"/>
+      <path d="M18 44c2-18 14-30 30-30s28 12 30 30c2 16-8 34-30 34S16 60 18 44z" fill="#F4E7C3"/>
+      <path d="M22 46c8-18 44-18 52 0 2 8-6 8-10 2-8-10-24-10-32 0-4 6-12 6-10-2z" fill="#E8D4A8"/>
+      <ellipse cx="36" cy="50" rx="5" ry="6" fill="#2F2F2F"/>
+      <ellipse cx="60" cy="50" rx="5" ry="6" fill="#2F2F2F"/>
+      <circle cx="37.5" cy="48.5" r="1.4" fill="#fff"/>
+      <circle cx="61.5" cy="48.5" r="1.4" fill="#fff"/>
+      <path d="M42 62c4 4 8 4 12 0" fill="none" stroke="#C48B6A" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <section id="subscribe" class="hidden"></section>
+    <section id="done" class="hidden">
+      <h1>You're in</h1>
+      <p class="status">Max is ready. Opening BibleBubby.</p>
+      <a class="cta" href="lamp://paid">Back to BibleBubby</a>
+    </section>
+    <section id="manage" class="hidden">
+      <h1>Manage subscription</h1>
+      <p class="status" id="manage-status">Opening the billing portal.</p>
+    </section>
+  </main>
+  <script src="/config.js"></script>
+  <script type="module">
+    import { allowedStripeHref, buildSubscribe, ticketEmail, trustedFunctions } from '/guard.js';
+
+    const params = new URLSearchParams(location.search);
+    let path = location.pathname.replace(/\/index\.html$/, '/').replace(/\/$/, '') || '/';
+    if (path.endsWith('/subscribe')) path = '/subscribe';
+    else if (path.endsWith('/done')) path = '/done';
+    else if (path.endsWith('/manage')) path = '/manage';
+    const plan = params.get('plan') === 'monthly' ? 'monthly' : 'annual';
+    const ticket = params.get('ticket') || '';
+    const trusted = trustedFunctions(window.BIBLEBUBBY_CHECKOUT || {});
+    const functionsUrl = trusted ? trusted.functionsUrl : '';
+    const anonKey = trusted ? trusted.anonKey : '';
+    const annual = { label: 'Annual', detail: '7 days free, then $39.99/year', badge: '7 days free' };
+    const monthly = { label: 'Monthly', detail: '$8.99/month' };
+    const outcomes = [
+      'Learn the whole Bible, one scene at a time',
+      'Every lesson explains why',
+      'Unlimited lessons, Genesis to Revelation as books arrive'
+    ];
+
+    function post(name, body) {
+      return fetch(functionsUrl + '/' + name, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: anonKey },
+        body: JSON.stringify(body)
+      }).then(function (response) { return response.json().then(function (data) { return { ok: response.ok, data: data }; }); });
+    }
+
+    function show(id) {
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    if (path === '/done') {
+      show('done');
+      setTimeout(function () { location.href = 'lamp://paid'; }, 2000);
+    } else if (path === '/manage') {
+      show('manage');
+      const status = document.getElementById('manage-status');
+      if (!ticket || !functionsUrl) {
+        status.textContent = 'Open manage subscription from Settings in the app.';
+      } else {
+        post('billing-portal', { ticket: ticket }).then(function (result) {
+          const href = result.ok ? allowedStripeHref(result.data && result.data.url) : '';
+          if (href) location.href = href;
+          else status.textContent = 'The billing portal could not be opened.';
+        }).catch(function () {
+          status.textContent = 'The billing portal could not be opened.';
+        });
+      }
+    } else {
+      show('subscribe');
+      const chosen = plan === 'monthly' ? monthly : annual;
+      const built = buildSubscribe(document, document.getElementById('subscribe'), {
+        headline: outcomes[0],
+        email: ticketEmail(ticket),
+        outcomes: outcomes.slice(1),
+        badge: chosen.badge || '',
+        label: chosen.label,
+        detail: chosen.detail,
+        cta: 'Continue'
+      });
+
+      built.button.addEventListener('click', function () {
+        const button = built.button;
+        const error = built.error;
+        if (!ticket || !functionsUrl) {
+          error.textContent = 'Open this page from BibleBubby to subscribe.';
+          error.classList.remove('hidden');
+          return;
+        }
+        button.disabled = true;
+        post('create-checkout', { action: 'session', ticket: ticket }).then(function (result) {
+          const href = result.ok ? allowedStripeHref(result.data && result.data.url) : '';
+          if (href) { location.href = href; return; }
+          button.disabled = false;
+          error.textContent = 'Checkout could not start.';
+          error.classList.remove('hidden');
+        }).catch(function () {
+          button.disabled = false;
+          error.textContent = 'Checkout could not start.';
+          error.classList.remove('hidden');
+        });
+      });
+    }
+  </script>
+</body>
+</html>
