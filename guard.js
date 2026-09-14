@@ -50,6 +50,25 @@ export function ticketEmail(ticket) {
   }
 }
 
+export function shouldAutoStartCheckout(input) {
+  return Boolean(
+    input
+    && typeof input.ticket === 'string'
+    && input.ticket
+    && typeof input.functionsUrl === 'string'
+    && input.functionsUrl
+    && !input.canceled,
+  );
+}
+
+export function subscribeFallbackMessage(input) {
+  if (!input || typeof input.ticket !== 'string' || !input.ticket || typeof input.functionsUrl !== 'string' || !input.functionsUrl) {
+    return 'Open this page from BibleBubby to subscribe.';
+  }
+  if (typeof input.error === 'string' && input.error.trim()) return input.error.trim();
+  return 'Checkout could not start.';
+}
+
 function el(document, tag, className) {
   const node = document.createElement(tag);
   if (className) node.className = className;
