@@ -39,6 +39,22 @@
       <path d="M42 62c4 4 8 4 12 0" fill="none" stroke="#C48B6A" stroke-width="2" stroke-linecap="round"/>
     </svg>
     <section id="subscribe" class="hidden"></section>
+    <noscript>
+      <section>
+        <h1>Learn the whole Bible, one scene at a time</h1>
+        <ul class="outcomes">
+          <li><span class="check" aria-hidden="true">✓</span><span>Every lesson explains why</span></li>
+          <li><span class="check" aria-hidden="true">✓</span><span>Unlimited lessons, Genesis to Revelation as books arrive</span></li>
+        </ul>
+        <div class="plan">
+          <div class="badge">7 days free</div>
+          <strong>Annual</strong>
+          <p class="price">7 days free, then $39.99/year</p>
+        </div>
+        <button type="button" disabled>Continue</button>
+        <p class="error">Open this page from BibleBubby to subscribe. JavaScript is required to continue to Stripe checkout.</p>
+      </section>
+    </noscript>
     <section id="done" class="hidden">
       <h1>You're in</h1>
       <p class="status">Max is ready. Opening BibleBubby.</p>
@@ -51,7 +67,7 @@
   </main>
   <script src="/config.js"></script>
   <script type="module">
-    import { allowedStripeHref, buildSubscribe, ticketEmail, trustedFunctions } from '/guard.js';
+    import { allowedStripeHref, buildSubscribe, shouldAutoStartCheckout, subscribeFallbackMessage, ticketEmail, trustedFunctions } from '/guard.js';
 
     const params = new URLSearchParams(location.search);
     let path = location.pathname.replace(/\/index\.html$/, '/').replace(/\/$/, '') || '/';
@@ -103,7 +119,8 @@
     } else {
       show('subscribe');
       const chosen = plan === 'monthly' ? monthly : annual;
-      const built = buildSubscribe(document, document.getElementById('subscribe'), {
+      const canceled = params.get('canceled') === '1';
+      const subscribeInput = {
         headline: outcomes[0],
         email: ticketEmail(ticket),
         outcomes: outcomes.slice(1),
@@ -111,13 +128,28 @@
         label: chosen.label,
         detail: chosen.detail,
         cta: 'Continue'
-      });
+      };
 
-      built.button.addEventListener('click', function () {
+      function renderFallback(message) {
+        const built = buildSubscribe(document, document.getElementById('subscribe'), {
+          ...subscribeInput,
+          cta: message ? 'Try again' : subscribeInput.cta,
+        });
+        if (message) {
+          built.error.textContent = message;
+          built.error.classList.remove('hidden');
+        }
+        built.button.addEventListener('click', function () {
+          startCheckout(built);
+        });
+        return built;
+      }
+
+      function startCheckout(built) {
         const button = built.button;
         const error = built.error;
         if (!ticket || !functionsUrl) {
-          error.textContent = 'Open this page from BibleBubby to subscribe.';
+          error.textContent = subscribeFallbackMessage({ ticket: ticket, functionsUrl: functionsUrl });
           error.classList.remove('hidden');
           return;
         }
@@ -126,14 +158,45 @@
           const href = result.ok ? allowedStripeHref(result.data && result.data.url) : '';
           if (href) { location.href = href; return; }
           button.disabled = false;
-          error.textContent = 'Checkout could not start.';
+          error.textContent = subscribeFallbackMessage({
+            ticket: ticket,
+            functionsUrl: functionsUrl,
+            error: result.data && result.data.error
+          });
           error.classList.remove('hidden');
         }).catch(function () {
           button.disabled = false;
-          error.textContent = 'Checkout could not start.';
+          error.textContent = subscribeFallbackMessage({ ticket: ticket, functionsUrl: functionsUrl });
           error.classList.remove('hidden');
         });
-      });
+      }
+
+      if (shouldAutoStartCheckout({ ticket: ticket, functionsUrl: functionsUrl, canceled: canceled })) {
+        const root = document.getElementById('subscribe');
+        root.textContent = '';
+        const status = document.createElement('p');
+        status.className = 'status';
+        status.id = 'opening';
+        status.textContent = 'Opening Stripe checkout…';
+        root.appendChild(status);
+        post('create-checkout', { action: 'session', ticket: ticket }).then(function (result) {
+          const href = result.ok ? allowedStripeHref(result.data && result.data.url) : '';
+          if (href) { location.href = href; return; }
+          renderFallback(subscribeFallbackMessage({
+            ticket: ticket,
+            functionsUrl: functionsUrl,
+            error: result.data && result.data.error
+          }));
+        }).catch(function () {
+          renderFallback(subscribeFallbackMessage({ ticket: ticket, functionsUrl: functionsUrl }));
+        });
+      } else {
+        renderFallback(
+          ticket && functionsUrl
+            ? ''
+            : subscribeFallbackMessage({ ticket: ticket, functionsUrl: functionsUrl }),
+        );
+      }
     }
   </script>
 </body>
